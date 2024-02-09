@@ -16,6 +16,7 @@ import time
 import numpy as np
 import pandas as pd
 import ruamel.yaml
+#import tree_maker
 
 # Import user-defined modules
 import xmask as xm
@@ -30,6 +31,14 @@ from misc import (
 
 # Initialize yaml reader
 ryaml = ruamel.yaml.YAML()
+
+
+# ==================================================================================================
+# --- Function for tree_maker tagging
+# ==================================================================================================
+def tree_maker_tagging(config, tag="started"):
+    # Start tree_maker logging if log_file is present in config
+    logging.warning("tree_maker loging not available")
 
 
 # ==================================================================================================
@@ -413,8 +422,8 @@ def configure_collider(
     context,
     save_collider=False,
     save_config=False,
-    return_collider_before_bb=True,
-    config_path="config.yaml",
+    return_collider_before_bb=False,
+    config_path="first_config.yaml",
 ):
     # Generate configuration files for orbit correction
     generate_configuration_correction_files()
@@ -449,30 +458,30 @@ def configure_collider(
         n_collisions_ip8,
     ) = compute_collision_from_scheme(config_bb)
 
-    # # Get crab cavities
-    # crab = False
-    # if "on_crab1" in config_collider["config_knobs_and_tuning"]["knob_settings"]:
-    #     crab_val = float(config_collider["config_knobs_and_tuning"]["knob_settings"]["on_crab1"])
-    #     if abs(crab_val) > 0:
-    #         crab = True
+    # Get crab cavities
+    crab = False
+    if "on_crab1" in config_collider["config_knobs_and_tuning"]["knob_settings"]:
+        crab_val = float(config_collider["config_knobs_and_tuning"]["knob_settings"]["on_crab1"])
+        if abs(crab_val) > 0:
+            crab = True
 
-    # # Do the leveling if requested
-    # if "config_lumi_leveling" in config_collider and not config_collider["skip_leveling"]:
-    #     collider, config_collider = do_levelling(
-    #         config_collider,
-    #         config_bb,
-    #         n_collisions_ip2,
-    #         n_collisions_ip8,
-    #         collider,
-    #         n_collisions_ip1_and_5,
-    #         crab,
-    #     )
+    # Do the leveling if requested
+    if "config_lumi_leveling" in config_collider and not config_collider["skip_leveling"]:
+        collider, config_collider = do_levelling(
+            config_collider,
+            config_bb,
+            n_collisions_ip2,
+            n_collisions_ip8,
+            collider,
+            n_collisions_ip1_and_5,
+            crab,
+        )
 
-    # else:
-    #     print(
-    #         "No leveling is done as no configuration has been provided, or skip_leveling"
-    #         " is set to True."
-    #     )
+    else:
+        print(
+            "No leveling is done as no configuration has been provided, or skip_leveling"
+            " is set to True."
+        )
 
     # Add linear coupling
     collider = add_linear_coupling(conf_knobs_and_tuning, collider, config_mad)
@@ -486,41 +495,44 @@ def configure_collider(
     assert_tune_chroma_coupling(collider, conf_knobs_and_tuning)
 
     # Return twiss and survey before beam-beam if requested
-    if return_collider_before_bb:
-        print("Saving collider before beam-beam configuration")
-        collider_before_bb = xt.Multiline.from_dict(collider.to_dict())
+    print("Saving collider before beam-beam configuration")
+    collider_before_bb = xt.Multiline.from_dict(collider.to_dict())
 
     if not config_bb["skip_beambeam"]:
         # Configure beam-beam
         collider = configure_beam_beam(collider, config_bb)
 
-    # # Update configuration with luminosity now that bb is known
-    # l_n_collisions = [
-    #     n_collisions_ip1_and_5,
-    #     n_collisions_ip2,
-    #     n_collisions_ip1_and_5,
-    #     n_collisions_ip8,
-    # ]
-    # config_bb = record_final_luminosity(collider, config_bb, l_n_collisions, crab)
+    # Update configuration with luminosity now that bb is known
+    l_n_collisions = [
+        n_collisions_ip1_and_5,
+        n_collisions_ip2,
+        n_collisions_ip1_and_5,
+        n_collisions_ip8,
+    ]
+    config_bb = record_final_luminosity(collider, config_bb, l_n_collisions, crab)
 
-    # Drop update configuration
+    # # Drop update configuration
     # with open(config_path, "w") as fid:
     #     ryaml.dump(config, fid)
 
-    print('Saving "collider.json')
-    config_dict = {
-        "config_mad": config_mad,
-        "config_collider": config_collider,
-    }
-    collider.metadata = config_dict
-    # Dump collider
-    collider.to_json("collider.json")
-    collider_before_bb.to_json("collider_nobb.json")
+    if save_collider:
+        # Save the final collider before tracking
+        print('Saving "collider.json')
+        if save_config:
+            config_dict = {
+                "config_mad": config_mad,
+                "config_collider": config_collider,
+            }
+            collider.metadata = config_dict
+        # Dump collider
+        collider.to_json("collider.json")
+        collider_before_bb.to_json("collider_before_bb.json")
 
     if return_collider_before_bb:
         return collider, config_sim, config_bb, collider_before_bb
     else:
         return collider, config_sim, config_bb
+
 
 # ==================================================================================================
 # --- Main function for collider configuration and tracking
@@ -532,8 +544,11 @@ def configure_and_track(config_path="first_config.yaml"):
     # Get context
     context = get_context(config)
 
+    # Tag start of the job
+    tree_maker_tagging(config, tag="started")
+
     # Configure collider (not saved, since it may trigger overload of afs)
-    collider, config_sim, config_bb, collider_before_bb = configure_collider(
+    collider, config_sim, config_bb = configure_collider(
         config,
         config_mad,
         context,
@@ -541,7 +556,16 @@ def configure_and_track(config_path="first_config.yaml"):
         save_config=config["dump_config_in_collider"],
         config_path=config_path,
     )
-    return collider, config_sim, config_bb
+
+    # Remote the correction folder, and potential C files remaining
+    try:
+        os.system("rm -rf correction")
+        os.system("rm -f *.cc")
+    except:
+        pass
+
+    # Tag end of the job
+    tree_maker_tagging(config, tag="completed")
 
 
 # ==================================================================================================
@@ -549,4 +573,4 @@ def configure_and_track(config_path="first_config.yaml"):
 # ==================================================================================================
 
 if __name__ == "__main__":
-    collider, config_sim, config_bb = configure_and_track()
+    configure_and_track()

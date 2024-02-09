@@ -7,12 +7,12 @@ in this script are called sequentially."""
 
 # Import standard library modules
 import itertools
-import pathlib
 import json
 import logging
 import os
 import shutil
 import subprocess
+import pathlib
 
 # Import third-party modules
 import numpy as np
@@ -28,15 +28,12 @@ import yaml
 from cpymad.madx import Madx
 
 
-# # ==================================================================================================
-# # --- Function for tree_maker tagging
-# # ==================================================================================================
-# def tree_maker_tagging(config, tag="started"):
-#     # Start tree_maker logging if log_file is present in config
-#     if tree_maker is not None and "log_file" in config:
-#         tree_maker.tag_json.tag_it(config["log_file"], tag)
-#     else:
-#         logging.warning("tree_maker loging not available")
+# ==================================================================================================
+# --- Function for tree_maker tagging
+# ==================================================================================================
+def tree_maker_tagging(config, tag="started"):
+    # Start tree_maker logging if log_file is present in config
+    logging.warning("tree_maker loging not available")
 
 
 # ==================================================================================================
@@ -48,7 +45,7 @@ def get_context(configuration):
     elif configuration["context"] == "opencl":
         context = xo.ContextPyopencl()
     elif configuration["context"] == "cpu":
-        context = xo.ContextCpu(omp_num_threads='auto')
+        context = xo.ContextCpu()
     else:
         logging.warning("context not recognized, using cpu")
         context = xo.ContextCpu()
@@ -64,25 +61,68 @@ def load_configuration(config_path="config.yaml"):
         configuration = yaml.safe_load(fid)
 
     # Get configuration for the particles distribution and the collider separately
+    config_particles = configuration["config_particles"]
     config_mad = configuration["config_mad"]
 
-    return configuration, config_mad
+    return configuration, config_particles, config_mad
+
+
+# ==================================================================================================
+# --- Function to build particle distribution and write it to file
+# ==================================================================================================
+def build_particle_distribution(config_particles):
+    # Define radius distribution
+    r_min = config_particles["r_min"]
+    r_max = config_particles["r_max"]
+    n_r = config_particles["n_r"]
+    radial_list = np.linspace(r_min, r_max, n_r, endpoint=False)
+
+    # Filter out particles with low and high amplitude to accelerate simulation
+    # radial_list = radial_list[(radial_list >= 4.5) & (radial_list <= 7.5)]
+
+    # Define angle distribution
+    n_angles = config_particles["n_angles"]
+    theta_list = np.linspace(0, 90, n_angles + 2)[1:-1]
+
+    # Define particle distribution as a cartesian product of the above
+    particle_list = [
+        (particle_id, ii[1], ii[0])
+        for particle_id, ii in enumerate(itertools.product(theta_list, radial_list))
+    ]
+
+    # Split distribution into several chunks for parallelization
+    n_split = config_particles["n_split"]
+    particle_list = list(np.array_split(particle_list, n_split))
+
+    # Return distribution
+    return particle_list
+
+
+def write_particle_distribution(particle_list):
+    # Write distribution to parquet files
+    distributions_folder = "particles"
+    os.makedirs(distributions_folder, exist_ok=True)
+    for idx_chunk, my_list in enumerate(particle_list):
+        pd.DataFrame(
+            my_list,
+            columns=["particle_id", "normalized amplitude in xy-plane", "angle in xy-plane [deg]"],
+        ).to_parquet(f"{distributions_folder}/{idx_chunk:02}.parquet")
+
 
 # ==================================================================================================
 # --- Function to build collider from mad model
 # ==================================================================================================
 def build_collider_from_mad(config_mad, context, sanity_checks=True):
     # Make mad environment
-    # xm.make_mad_environment(links=config_mad["links"])
+    xm.make_mad_environment(links=config_mad["links"])
+    # shutil.rmtree("temp", ignore_errors=True)
+    # os.makedirs("temp")
 
-    shutil.rmtree("temp", ignore_errors=True)
-    os.makedirs("temp")
+    # if pathlib.Path('acc-models-lhc').is_dir():
+    #     print('Previous acc-models-lhc found, removing it.')
+    #     shutil.rmtree("acc-models-lhc/")
 
-    if pathlib.Path('acc-models-lhc').is_dir():
-        print('Previous acc-models-lhc found, removing it.')
-        shutil.rmtree("acc-models-lhc/")
-
-    subprocess.run(['git', 'clone', '--branch', config_mad['acc-models-branch'], 'https://gitlab.cern.ch/acc-models/acc-models-lhc.git'])
+    # subprocess.run(['git', 'clone', '--branch', config_mad['acc-models-branch'], 'https://gitlab.cern.ch/acc-models/acc-models-lhc.git'])
 
 
     # Start mad
@@ -100,17 +140,17 @@ def build_collider_from_mad(config_mad, context, sanity_checks=True):
     if sanity_checks:
         mad_b1b2.use(sequence="lhcb1")
         mad_b1b2.twiss()
-        #ost.check_madx_lattices(mad_b1b2)
+        ost.check_madx_lattices(mad_b1b2)
         mad_b1b2.use(sequence="lhcb2")
         mad_b1b2.twiss()
-        #ost.check_madx_lattices(mad_b1b2)
+        ost.check_madx_lattices(mad_b1b2)
 
     # Apply optics (only for b4, just for check)
     ost.apply_optics(mad_b4, optics_file=config_mad["optics_file"])
     if sanity_checks:
         mad_b4.use(sequence="lhcb2")
         mad_b4.twiss()
-        # ost.check_madx_lattices(mad_b1b2)
+        ost.check_madx_lattices(mad_b1b2)
 
     # Build xsuite collider
     collider = xlhc.build_xsuite_collider(
@@ -169,8 +209,7 @@ def clean():
     os.remove("mad_b4.log")
     shutil.rmtree("temp")
     os.unlink("errors")
-    shutil.rmtree("acc-models-lhc/")
-    # os.unlink("acc-models-lhc")
+    os.unlink("acc-models-lhc")
 
 
 # ==================================================================================================
@@ -178,13 +217,22 @@ def clean():
 # ==================================================================================================
 def build_distr_and_collider(config_file="config.yaml"):
     # Get configuration
-    configuration, config_mad = load_configuration(config_file)
+    configuration, config_particles, config_mad = load_configuration(config_file)
 
     # Get context
     context = get_context(configuration)
 
     # Get sanity checks flag
     sanity_checks = configuration["sanity_checks"]
+
+    # Tag start of the job
+    tree_maker_tagging(configuration, tag="started")
+
+    # # Build particle distribution
+    # particle_list = build_particle_distribution(config_particles)
+
+    # # Write particle distribution to file
+    # write_particle_distribution(particle_list)
 
     # Build collider from mad model
     collider = build_collider_from_mad(config_mad, context, sanity_checks)
@@ -199,8 +247,8 @@ def build_distr_and_collider(config_file="config.yaml"):
     os.makedirs("collider", exist_ok=True)
     collider.to_json("collider/collider.json")
 
-    # # Tag end of the job
-    # tree_maker_tagging(configuration, tag="completed")
+    # Tag end of the job
+    tree_maker_tagging(configuration, tag="completed")
 
 
 # ==================================================================================================
