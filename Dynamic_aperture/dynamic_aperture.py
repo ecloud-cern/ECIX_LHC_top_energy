@@ -26,6 +26,7 @@ parser.add_argument('--zeta', nargs='?', default=0.03, type=float)
 parser.add_argument('--pzeta', nargs='?', default=0, type=float)
 # parser.add_argument('--pzeta', nargs='?', default=2.7e-4, type=float)
 parser.add_argument('--omp_num_threads', nargs='?', default=15, type=int)
+parser.add_argument('--ecloud_strength', nargs='?', default=1, type=float)
 args = parser.parse_args()
 
 output_filename = args.filename
@@ -38,6 +39,7 @@ sigma = args.sigma
 sigma0 = 2
 zeta = args.zeta
 pzeta = args.pzeta
+ecloud_strength = args.ecloud_strength
 omp_num_threads = args.omp_num_threads
 
 output_filename = f"DA.h5"
@@ -73,6 +75,7 @@ start_config = time.time()
 twiss_without_ecloud, twiss_with_ecloud = xf.full_electroncloud_setup(line=line, 
         ecloud_info=ecloud_info, filenames=filenames, context=context, zeta_max=zeta_max,
         shift_to_closed_orbit=False)
+line.vars['ecloud_strength'] = ecloud_strength
 end_config = time.time()
 
 line.build_tracker(_context=context)
