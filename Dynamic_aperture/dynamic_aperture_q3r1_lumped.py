@@ -60,14 +60,14 @@ for key in eclouds.keys():
     if "itr1" in key:
         index = key.split('.')[3]
         name = key
-        ecloud_info[f"q3r1"] = {name: {'length': eclouds[key]['length'],
+        ecloud_info['itr1'] = {name: {'length': eclouds[key]['length'],
                                        's': eclouds[key]['s']
                                       }}
 
 zeta_max = 0.05
 # filenames = {f'q3r1_{index}' : folder + f'/refined_LHC6.8TeV_v1_Q3R1_{index}_sey1.35_1.20e11ppb_MTI2.0_MLI2.0_DTO1.0_DLO1.0.h5' for index in range(0,2)}
 # filenames = {f'q3r1_{index}' : f'q3r1_{index}.h5' for index in range(0,2)}
-filenames = {'q3r1' : 'q3r1.h5'}
+filenames = {'itr1' : 'q3r1.h5'}
 
 print(filenames)
 
