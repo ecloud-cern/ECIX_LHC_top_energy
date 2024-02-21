@@ -3,6 +3,9 @@ import xobjects as xo
 import xpart as xp
 import xfields as xf
 
+#for var in ['x','px','y','py','zeta', 'pzeta']:
+#    xt.twiss.DEFAULT_STEPS_R_MATRIX[var]=1.e-10
+
 from ECIX_tools import filemanager as exfm
 from ECIX_tools import collimators
 from ECIX_tools import particles_builder as pb
@@ -51,6 +54,9 @@ line = collider.lhcb1
 context = xo.ContextCpu(omp_num_threads=args.omp_num_threads)
 collimators.collimator_setup(line, number_of_sigmas=5)
 
+steps_r_matrix={'dx' : 1.e-10, 'dpx' : 1.e-10,
+                'dy' : 1.e-10, 'dpy' : 1.e-10,
+                'dzeta' : 1.e-6, 'ddelta' : 1.e-6}
 
 with open('eclouds_LHCIT_triplets.json') as fid:
     eclouds = json.load(fid)
@@ -74,7 +80,7 @@ print(filenames)
 start_config = time.time()
 twiss_without_ecloud, twiss_with_ecloud = xf.full_electroncloud_setup(line=line, 
         ecloud_info=ecloud_info, filenames=filenames, context=context, zeta_max=zeta_max,
-        shift_to_closed_orbit=False)
+        shift_to_closed_orbit=False, steps_r_matrix=steps_r_matrix)
 line.vars['ecloud_strength'] = ecloud_strength
 end_config = time.time()
 
@@ -83,7 +89,7 @@ line.optimize_for_tracking()
 particles, Ax_norm, Ay_norm = pb.polar_grid_particles(line=line, pzeta=pzeta, zeta=zeta,
                                                       sigma0=sigma0, sigma=sigma,
                                                       num_r=num_r, num_theta=num_theta,
-                                                      ref_emitt=3.5e-6)
+                                                      ref_emitt=3.5e-6, steps_r_matrix=steps_r_matrix)
 
 initial_coords = pb.extract_coords(particles)
 
