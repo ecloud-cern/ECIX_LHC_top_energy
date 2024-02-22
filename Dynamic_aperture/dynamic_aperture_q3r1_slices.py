@@ -51,6 +51,9 @@ line = collider.lhcb1
 context = xo.ContextCpu(omp_num_threads=args.omp_num_threads)
 collimators.collimator_setup(line, number_of_sigmas=5)
 
+steps_r_matrix={'dx' : 1.e-10, 'dpx' : 1.e-10,
+                'dy' : 1.e-10, 'dpy' : 1.e-10,
+                'dzeta' : 1.e-6, 'ddelta' : 1.e-6}
 
 with open('eclouds_LHCIT_v1.json') as fid:
     eclouds = json.load(fid)
@@ -66,15 +69,15 @@ for key in eclouds.keys():
 
 zeta_max = 0.05
 # filenames = {f'q3r1_{index}' : folder + f'/refined_LHC6.8TeV_v1_Q3R1_{index}_sey1.35_1.20e11ppb_MTI2.0_MLI2.0_DTO1.0_DLO1.0.h5' for index in range(0,2)}
-# filenames = {f'q3r1_{index}' : f'q3r1_{index}.h5' for index in range(0,2)}
-filenames = {'q3r1_0' : 'q3r1_0.h5'}
+filenames = {f'q3r1_{index}' : f'q3r1_{index}.h5' for index in range(64)}
+#filenames = {'q3r1_0' : 'q3r1_0.h5'}
 
 print(filenames)
 
 start_config = time.time()
 twiss_without_ecloud, twiss_with_ecloud = xf.full_electroncloud_setup(line=line, 
         ecloud_info=ecloud_info, filenames=filenames, context=context, zeta_max=zeta_max,
-        shift_to_closed_orbit=False)
+        shift_to_closed_orbit=False, steps_r_matrix=steps_r_matrix)
 line.vars['ecloud_strength'] = ecloud_strength
 end_config = time.time()
 
@@ -83,7 +86,7 @@ line.optimize_for_tracking()
 particles, Ax_norm, Ay_norm = pb.polar_grid_particles(line=line, pzeta=pzeta, zeta=zeta,
                                                       sigma0=sigma0, sigma=sigma,
                                                       num_r=num_r, num_theta=num_theta,
-                                                      ref_emitt=3.5e-6)
+                                                      ref_emitt=3.5e-6, steps_r_matrix=steps_r_matrix)
 
 initial_coords = pb.extract_coords(particles)
 
