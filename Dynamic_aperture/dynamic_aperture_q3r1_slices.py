@@ -21,7 +21,7 @@ start_running = time.time()
 parser = argparse.ArgumentParser()
 parser.add_argument('--filename', nargs='?', default='DA.h5', type=str)
 parser.add_argument('--num_turns', nargs='?', default=1000000, type=int)
-parser.add_argument('--sigma', nargs='?', default=7, type=float)
+parser.add_argument('--sigma', nargs='?', default=5.5, type=float)
 parser.add_argument('--zeta', nargs='?', default=0.03, type=float)
 parser.add_argument('--pzeta', nargs='?', default=0, type=float)
 # parser.add_argument('--pzeta', nargs='?', default=2.7e-4, type=float)
@@ -36,7 +36,7 @@ num_theta = 45#int(np.sqrt(num_particles))
 # num_r = 216#int(np.sqrt(num_particles))
 # num_theta = 128#int(np.sqrt(num_particles))
 sigma = args.sigma
-sigma0 = 2
+sigma0 = 0.5
 zeta = args.zeta
 pzeta = args.pzeta
 ecloud_strength = args.ecloud_strength

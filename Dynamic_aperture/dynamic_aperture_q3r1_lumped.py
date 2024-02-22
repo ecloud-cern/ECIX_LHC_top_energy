@@ -24,7 +24,7 @@ start_running = time.time()
 parser = argparse.ArgumentParser()
 parser.add_argument('--filename', nargs='?', default='DA.h5', type=str)
 parser.add_argument('--num_turns', nargs='?', default=1000000, type=int)
-parser.add_argument('--sigma', nargs='?', default=7, type=float)
+parser.add_argument('--sigma', nargs='?', default=5.5, type=float)
 parser.add_argument('--zeta', nargs='?', default=0.03, type=float)
 parser.add_argument('--pzeta', nargs='?', default=0, type=float)
 # parser.add_argument('--pzeta', nargs='?', default=2.7e-4, type=float)
@@ -39,7 +39,7 @@ num_theta = 45#int(np.sqrt(num_particles))
 # num_r = 216#int(np.sqrt(num_particles))
 # num_theta = 128#int(np.sqrt(num_particles))
 sigma = args.sigma
-sigma0 = 2
+sigma0 = 0.5
 zeta = args.zeta
 pzeta = args.pzeta
 ecloud_strength = args.ecloud_strength
@@ -76,6 +76,13 @@ zeta_max = 0.05
 filenames = {'itr1' : 'q3r1.h5'}
 
 print(filenames)
+
+# line.build_tracker(_context=context)
+# particles, Ax_norm, Ay_norm = pb.polar_grid_particles(line=line, pzeta=pzeta, zeta=zeta,
+#                                                       sigma0=sigma0, sigma=sigma,
+#                                                       num_r=num_r, num_theta=num_theta,
+#                                                       ref_emitt=3.5e-6, steps_r_matrix=steps_r_matrix)
+# line.discard_tracker()
 
 start_config = time.time()
 twiss_without_ecloud, twiss_with_ecloud = xf.full_electroncloud_setup(line=line, 
