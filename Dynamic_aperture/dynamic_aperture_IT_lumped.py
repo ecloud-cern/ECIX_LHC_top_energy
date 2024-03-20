@@ -29,6 +29,8 @@ parser.add_argument('--pzeta', nargs='?', default=0, type=float)
 # parser.add_argument('--pzeta', nargs='?', default=2.7e-4, type=float)
 # parser.add_argument('--omp_num_threads', nargs='?', default=15, type=int)
 parser.add_argument('--ecloud_strength', nargs='?', default=1, type=float)
+parser.add_argument('--beambeam', action='store_true')
+parser.add_argument('--noecloud', action='store_true')
 args = parser.parse_args()
 
 output_filename = args.filename
@@ -46,7 +48,10 @@ ecloud_strength = args.ecloud_strength
 
 output_filename = f"DA.h5"
 
-collider_file = "collider_before_bb.json"
+if args.beambeam:
+    collider_file = "collider.json"
+else:
+    collider_file = "collider_before_bb.json"
 collider = xt.Multiline.from_json(collider_file)
 line = collider.lhcb1
 
@@ -88,10 +93,11 @@ print(filenames)
 # line.discard_tracker()
 
 start_config = time.time()
-twiss_without_ecloud, twiss_with_ecloud = xf.full_electroncloud_setup(line=line, 
-        ecloud_info=ecloud_info, filenames=filenames, context=context, zeta_max=zeta_max,
-        shift_to_closed_orbit=False, steps_r_matrix=steps_r_matrix)
-line.vars['ecloud_strength'] = ecloud_strength
+if not args.noecloud:
+    twiss_without_ecloud, twiss_with_ecloud = xf.full_electroncloud_setup(line=line, 
+            ecloud_info=ecloud_info, filenames=filenames, context=context, zeta_max=zeta_max,
+            shift_to_closed_orbit=False, steps_r_matrix=steps_r_matrix)
+    line.vars['ecloud_strength'] = ecloud_strength
 end_config = time.time()
 
 line.build_tracker(_context=context)
